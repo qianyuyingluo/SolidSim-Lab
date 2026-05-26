@@ -24,6 +24,13 @@
         <div class="controls-section panel-block">
           <div class="section-title">参数调节</div>
 
+          <div class="set-toolbar">
+            <button id="addSetButton" type="button" class="set-button">新增参数组</button>
+            <button id="removeSetButton" type="button" class="set-button secondary">删除当前组</button>
+          </div>
+
+          <div id="parameterSets" class="parameter-sets" aria-label="参数组列表"></div>
+
           <div class="control-item">
             <label for="alphaSlider">\( \alpha \)</label>
             <input id="alphaSlider" type="range" min="0.1" max="5" step="0.1" value="1.0" />
@@ -41,7 +48,7 @@
       <section class="right-panel panel-block chart-section">
         <div class="chart-header">
           <div class="section-title">图像</div>
-          <div class="parameter-badge" id="parameterBadge">α = 1.0, β = 0.5</div>
+          <div class="parameter-badge" id="parameterBadge">共 1 组参数</div>
         </div>
         <div class="canvas-wrap">
           <canvas id="plotCanvas" width="1240" height="760" aria-label="K_el 曲线图"></canvas>

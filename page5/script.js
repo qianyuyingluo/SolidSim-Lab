@@ -3,6 +3,9 @@ const betaSlider = document.getElementById("betaSlider");
 const alphaValue = document.getElementById("alphaValue");
 const betaValue = document.getElementById("betaValue");
 const parameterBadge = document.getElementById("parameterBadge");
+const parameterSetsEl = document.getElementById("parameterSets");
+const addSetButton = document.getElementById("addSetButton");
+const removeSetButton = document.getElementById("removeSetButton");
 const formulaEl = document.getElementById("formula");
 const canvas = document.getElementById("plotCanvas");
 const ctx = canvas.getContext("2d");
@@ -12,6 +15,22 @@ const T_MAX = 15;
 const Y_MIN = 0;
 const Y_MAX = 6;
 const SAMPLE_COUNT = 1200;
+const CURVE_COLORS = [
+  "#118ed6",
+  "#e85d75",
+  "#2f9e44",
+  "#f08c00",
+  "#7048e8",
+  "#0ca678",
+  "#d6336c",
+  "#364fc7"
+];
+
+let parameterSets = [
+  { id: 1, alpha: 1.0, beta: 0.5, color: CURVE_COLORS[0] }
+];
+let activeSetId = 1;
+let nextSetId = 2;
 
 function kel(T, alpha, beta) {
   if (T <= 0) return 0;
@@ -20,6 +39,10 @@ function kel(T, alpha, beta) {
 
 function formatValue(value) {
   return Number(value).toFixed(1);
+}
+
+function getActiveSet() {
+  return parameterSets.find((set) => set.id === activeSetId) || parameterSets[0];
 }
 
 function updateFormula() {
@@ -130,7 +153,7 @@ function drawAxes(layout) {
   ctx.restore();
 }
 
-function drawCurve(points, layout) {
+function drawCurve(points, layout, color, isActive) {
   const { left, bottom, width, height } = layout;
 
   ctx.save();
@@ -142,15 +165,64 @@ function drawCurve(points, layout) {
     else ctx.lineTo(x, y);
   });
 
-  ctx.strokeStyle = "#118ed6";
-  ctx.lineWidth = 4.2;
-  ctx.shadowColor = "rgba(17, 142, 214, 0.24)";
-  ctx.shadowBlur = 12;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = isActive ? 4.8 : 3.4;
+  ctx.globalAlpha = isActive ? 1 : 0.76;
+  ctx.shadowColor = isActive ? `${color}44` : "transparent";
+  ctx.shadowBlur = isActive ? 12 : 0;
   ctx.stroke();
   ctx.restore();
 }
 
-function drawFigure(alpha, beta) {
+function drawLegend(layout) {
+  const lineHeight = 28;
+  const width = 260;
+  const height = 24 + parameterSets.length * lineHeight;
+  const x = layout.right - width - 18;
+  const y = layout.top + 18;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  ctx.strokeStyle = "rgba(17, 142, 214, 0.18)";
+  ctx.lineWidth = 1.2;
+  roundRect(x, y, width, height, 14);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = '16px "Segoe UI", "Microsoft YaHei", sans-serif';
+  ctx.textBaseline = "middle";
+  parameterSets.forEach((set, index) => {
+    const itemY = y + 24 + index * lineHeight;
+    ctx.strokeStyle = set.color;
+    ctx.lineWidth = set.id === activeSetId ? 4 : 3;
+    ctx.beginPath();
+    ctx.moveTo(x + 16, itemY);
+    ctx.lineTo(x + 54, itemY);
+    ctx.stroke();
+
+    ctx.fillStyle = set.id === activeSetId ? "#11364f" : "#527b94";
+    ctx.textAlign = "left";
+    ctx.fillText(
+      `组 ${index + 1}: α=${formatValue(set.alpha)}, β=${formatValue(set.beta)}`,
+      x + 66,
+      itemY
+    );
+  });
+  ctx.restore();
+}
+
+function roundRect(x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawFigure() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const layout = {
@@ -165,24 +237,93 @@ function drawFigure(alpha, beta) {
   drawBackground(layout);
   drawGrid(layout);
   drawAxes(layout);
-  drawCurve(buildCurve(alpha, beta), layout);
+  parameterSets.forEach((set) => {
+    drawCurve(buildCurve(set.alpha, set.beta), layout, set.color, set.id === activeSetId);
+  });
+  drawLegend(layout);
 }
 
-function refresh() {
-  const alpha = Number(alphaSlider.value);
-  const beta = Number(betaSlider.value);
+function renderParameterSets() {
+  parameterSetsEl.innerHTML = "";
 
-  alphaValue.textContent = formatValue(alpha);
-  betaValue.textContent = formatValue(beta);
-  parameterBadge.textContent = `α = ${formatValue(alpha)}, β = ${formatValue(beta)}`;
+  parameterSets.forEach((set, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `set-card${set.id === activeSetId ? " active" : ""}`;
+    button.dataset.id = String(set.id);
+    button.innerHTML = `
+      <span class="set-color" style="background: ${set.color}"></span>
+      <span class="set-name">组 ${index + 1}</span>
+      <span class="set-values">α=${formatValue(set.alpha)} / β=${formatValue(set.beta)}</span>
+    `;
+    button.addEventListener("click", () => {
+      activeSetId = set.id;
+      refresh({ syncFromActive: true });
+    });
+    parameterSetsEl.appendChild(button);
+  });
+}
+
+function syncControlsFromActiveSet() {
+  const activeSet = getActiveSet();
+  alphaSlider.value = String(activeSet.alpha);
+  betaSlider.value = String(activeSet.beta);
+  alphaValue.textContent = formatValue(activeSet.alpha);
+  betaValue.textContent = formatValue(activeSet.beta);
+  removeSetButton.disabled = parameterSets.length === 1;
+}
+
+function updateActiveSetFromControls() {
+  const activeSet = getActiveSet();
+  activeSet.alpha = Number(alphaSlider.value);
+  activeSet.beta = Number(betaSlider.value);
+}
+
+function addParameterSet() {
+  const activeSet = getActiveSet();
+  const color = CURVE_COLORS[(nextSetId - 1) % CURVE_COLORS.length];
+  const newSet = {
+    id: nextSetId,
+    alpha: Math.min(5, Number((activeSet.alpha + 0.4).toFixed(1))),
+    beta: Math.min(10, Number((activeSet.beta + 0.5).toFixed(1))),
+    color
+  };
+
+  nextSetId += 1;
+  parameterSets.push(newSet);
+  activeSetId = newSet.id;
+  refresh({ syncFromActive: true });
+}
+
+function removeActiveSet() {
+  if (parameterSets.length === 1) return;
+
+  const activeIndex = parameterSets.findIndex((set) => set.id === activeSetId);
+  parameterSets = parameterSets.filter((set) => set.id !== activeSetId);
+  const nextActive = parameterSets[Math.max(0, activeIndex - 1)];
+  activeSetId = nextActive.id;
+  refresh({ syncFromActive: true });
+}
+
+function refresh(options = {}) {
+  if (!options.syncFromActive) {
+    updateActiveSetFromControls();
+  }
+
+  syncControlsFromActiveSet();
+  renderParameterSets();
+  parameterBadge.textContent = `共 ${parameterSets.length} 组参数`;
 
   updateFormula();
-  drawFigure(alpha, beta);
+  drawFigure();
 }
 
 [alphaSlider, betaSlider].forEach((slider) => {
-  slider.addEventListener("input", refresh);
+  slider.addEventListener("input", () => refresh());
 });
+
+addSetButton.addEventListener("click", addParameterSet);
+removeSetButton.addEventListener("click", removeActiveSet);
 
 window.addEventListener("load", () => {
   if (window.renderMathInElement) {
@@ -194,5 +335,5 @@ window.addEventListener("load", () => {
       throwOnError: false
     });
   }
-  refresh();
+  refresh({ syncFromActive: true });
 });
